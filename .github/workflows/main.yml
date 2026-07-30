@@ -14,7 +14,7 @@ jobs:
       - name: Set up Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev libelf-dev bc git curl lld clang llvm
+          sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev libelf-dev bc git curl lld clang llvm cpio rsync
 
       - name: Fetch Common Android Kernel 6.1 Source
         run: |
@@ -38,12 +38,15 @@ jobs:
           scripts/config --module CONFIG_ATH9K_COMMON
           scripts/config --module CONFIG_ATH9K_HTC
 
-          # 3. Apply default values non-interactively for any unconfigured prompts
+          # 3. Apply default values non-interactively
           make ARCH=arm64 LLVM=1 olddefconfig
 
-          # 4. Prepare and Build Modules
+          # 4. Prepare Module Build Environment
           make ARCH=arm64 LLVM=1 modules_prepare
-          make ARCH=arm64 LLVM=1 -j$(nproc) modules
+
+          # 5. Target ONLY the wireless module directories
+          make ARCH=arm64 LLVM=1 -j$(nproc) M=net/wireless modules
+          make ARCH=arm64 LLVM=1 -j$(nproc) M=drivers/net/wireless/ath/ath9k modules
 
       - name: Package Compiled .ko Artifacts
         run: |
