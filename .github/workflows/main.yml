@@ -25,7 +25,7 @@ jobs:
 
       - name: Fetch Common Android Kernel 6.1 Source
         run: |
-          git clone --depth=1 -b common-android14-6.1 https://android.googlesource.com/kernel/common android-kernel
+          git clone --depth=1 -b android14-6.1 https://android.googlesource.com/kernel/common android-kernel
           
       - name: Configure and Build Kernel Modules
         run: |
