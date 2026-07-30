@@ -20,7 +20,6 @@ jobs:
         run: |
           mkdir -p $GITHUB_WORKSPACE/toolchain
           cd $GITHUB_WORKSPACE/toolchain
-          # Downloads Google's prebuilt Android Kernel Clang toolchain
           git clone --depth=1 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang
           echo "$GITHUB_WORKSPACE/toolchain/clang/clang-r488900/bin" >> $GITHUB_PATH
 
@@ -32,27 +31,22 @@ jobs:
         run: |
           cd android-kernel
           
-          # Generate base gki_defconfig
           make ARCH=arm64 LLVM=1 gki_defconfig
 
-          # Explicitly set cfg80211, mac80211, and ath9k_htc as loadable modules (=m)
           scripts/config --module CONFIG_CFG80211
           scripts/config --module CONFIG_MAC80211
           scripts/config --module CONFIG_ATH9K_HW
           scripts/config --module CONFIG_ATH9K_COMMON
           scripts/config --module CONFIG_ATH9K_HTC
 
-          # Prepare kernel modules build
           make ARCH=arm64 LLVM=1 modules_prepare
           
-          # Build only the wireless subsystem and ath9k drivers
           make ARCH=arm64 LLVM=1 -j$(nproc) M=net/wireless modules
           make ARCH=arm64 LLVM=1 -j$(nproc) M=drivers/net/wireless/ath/ath9k modules
 
       - name: Package Compiled .ko Artifacts
         run: |
           mkdir -p output_modules
-          # Collect all generated .ko files across subdirectories
           find android-kernel/ -name "*.ko" -exec cp {} output_modules/ \;
           echo "Found modules:"
           ls -la output_modules/
