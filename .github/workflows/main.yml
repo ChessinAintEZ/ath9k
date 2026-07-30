@@ -1,0 +1,64 @@
+name: Build ath9k_htc LKM
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev libelf-dev bc git curl
+
+      - name: Set up Android NDK / Clang Toolchain
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/toolchain
+          cd $GITHUB_WORKSPACE/toolchain
+          # Downloads Google's prebuilt Android Kernel Clang toolchain
+          git clone --depth=1 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang
+          echo "$GITHUB_WORKSPACE/toolchain/clang/clang-r488900/bin" >> $GITHUB_PATH
+
+      - name: Fetch Common Android Kernel 6.1 Source
+        run: |
+          git clone --depth=1 -b common-android14-6.1 https://android.googlesource.com/kernel/common android-kernel
+          
+      - name: Configure and Build Kernel Modules
+        run: |
+          cd android-kernel
+          
+          # Generate base gki_defconfig
+          make ARCH=arm64 LLVM=1 gki_defconfig
+
+          # Explicitly set cfg80211, mac80211, and ath9k_htc as loadable modules (=m)
+          scripts/config --module CONFIG_CFG80211
+          scripts/config --module CONFIG_MAC80211
+          scripts/config --module CONFIG_ATH9K_HW
+          scripts/config --module CONFIG_ATH9K_COMMON
+          scripts/config --module CONFIG_ATH9K_HTC
+
+          # Prepare kernel modules build
+          make ARCH=arm64 LLVM=1 modules_prepare
+          
+          # Build only the wireless subsystem and ath9k drivers
+          make ARCH=arm64 LLVM=1 -j$(nproc) M=net/wireless modules
+          make ARCH=arm64 LLVM=1 -j$(nproc) M=drivers/net/wireless/ath/ath9k modules
+
+      - name: Package Compiled .ko Artifacts
+        run: |
+          mkdir -p output_modules
+          # Collect all generated .ko files across subdirectories
+          find android-kernel/ -name "*.ko" -exec cp {} output_modules/ \;
+          echo "Found modules:"
+          ls -la output_modules/
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ath9k-kernel-modules
+          path: output_modules/*.ko
