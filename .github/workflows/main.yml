@@ -27,12 +27,13 @@ jobs:
           # 1. Base Android GKI Configuration
           make ARCH=arm64 LLVM=1 gki_defconfig
 
-          # 2. Disable in-kernel headers & certificate extraction tool to prevent OpenSSL build failure
+          # 2. Disable system certs, signatures, and headers tools
           scripts/config --disable CONFIG_IKHEADERS
           scripts/config --disable CONFIG_IKHEADERS_PROC
           scripts/config --disable CONFIG_SYSTEM_TRUSTED_KEYS
           scripts/config --disable CONFIG_SYSTEM_REVOCATION_KEYS
           scripts/config --disable CONFIG_MODULE_SIG
+          scripts/config --disable CONFIG_CRYPTO_SIGNATURE
 
           # 3. Enable Core Networking, Crypto, and Subsystem Flags
           scripts/config --enable CONFIG_NET
@@ -56,14 +57,15 @@ jobs:
           scripts/config --module CONFIG_ATH9K_COMMON
           scripts/config --module CONFIG_ATH9K_HTC
 
-          # 6. Resolve dependencies non-interactively
+          # 6. Resolve dependencies
           make ARCH=arm64 LLVM=1 olddefconfig
 
           # 7. Prepare build environment
           make ARCH=arm64 LLVM=1 modules_prepare
 
-          # 8. Build ALL enabled modules in a single pass
-          make ARCH=arm64 LLVM=1 -j$(nproc) modules
+          # 8. Build isolated module targets to avoid building certs host tools
+          make ARCH=arm64 LLVM=1 -j$(nproc) M=net/mac80211 modules
+          make ARCH=arm64 LLVM=1 -j$(nproc) M=drivers/net/wireless/ath/ath9k modules
 
       - name: Package Compiled .ko Artifacts
         run: |
