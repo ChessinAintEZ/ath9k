@@ -31,7 +31,7 @@ jobs:
           scripts/config --disable CONFIG_IKHEADERS
           scripts/config --disable CONFIG_IKHEADERS_PROC
 
-          # 3. Enable Core Networking & Crypto Prereqs for Mac80211
+          # 3. Force Subsystem & Module Flags
           scripts/config --enable CONFIG_NET
           scripts/config --enable CONFIG_WIRELESS
           scripts/config --enable CONFIG_NETDEVICES
@@ -39,29 +39,31 @@ jobs:
           scripts/config --enable CONFIG_CRYPTO
           scripts/config --enable CONFIG_CRYPTO_LIB_ARC4
 
-          # 4. Enable Subsystem Modules
           scripts/config --module CONFIG_CFG80211
           scripts/config --module CONFIG_MAC80211
           scripts/config --enable CONFIG_MAC80211_HAS_RC
           scripts/config --enable CONFIG_MAC80211_RC_MINSTREL
-          scripts/config --enable CONFIG_MAC80211_RC_DEFAULT_MINSTREL
 
-          # 5. Enable Ath9k Drivers
           scripts/config --enable CONFIG_WLAN_VENDOR_ATH
           scripts/config --module CONFIG_ATH_COMMON
           scripts/config --module CONFIG_ATH9K_HW
           scripts/config --module CONFIG_ATH9K_COMMON
           scripts/config --module CONFIG_ATH9K_HTC
 
-          # 6. Apply Non-Interactive Resolution
+          # 4. Resolve dependencies
           make ARCH=arm64 LLVM=1 olddefconfig
 
-          # 7. Verify CONFIG_MAC80211 was preserved in .config
-          grep CONFIG_MAC80211 .config
+          # 5. DEBUG: Print resolved state of wireless configs
+          echo "=== KCONFIG RESOLUTION CHECK ==="
+          grep -E "CONFIG_CFG80211|CONFIG_MAC80211|CONFIG_ATH9K" .config
+          echo "================================"
 
-          # 8. Build Kernel Modules Target
+          # 6. Prepare build environment
           make ARCH=arm64 LLVM=1 modules_prepare
-          make ARCH=arm64 LLVM=1 -j$(nproc) modules
+
+          # 7. Explicitly compile net/mac80211 directory
+          make ARCH=arm64 LLVM=1 -j$(nproc) M=net/mac80211 modules
+          make ARCH=arm64 LLVM=1 -j$(nproc) M=drivers/net/wireless/ath/ath9k modules
 
       - name: Package Compiled .ko Artifacts
         run: |
