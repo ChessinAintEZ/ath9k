@@ -1,4 +1,26 @@
-- name: Configure and Build Kernel Modules
+name: Build ath9k_htc LKM
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev libelf-dev bc git curl lld clang llvm cpio rsync xz-utils python3
+
+      - name: Fetch Common Android Kernel 6.1 Source
+        run: |
+          git clone --depth=1 -b android14-6.1 https://android.googlesource.com/kernel/common android-kernel
+          
+      - name: Configure and Build Kernel Modules
         run: |
           cd android-kernel
           
@@ -17,22 +39,38 @@
           scripts/config --enable CONFIG_CRYPTO
           scripts/config --enable CONFIG_CRYPTO_LIB_ARC4
 
+          # 4. Enable Subsystem Modules
           scripts/config --module CONFIG_CFG80211
           scripts/config --module CONFIG_MAC80211
           scripts/config --enable CONFIG_MAC80211_HAS_RC
           scripts/config --enable CONFIG_MAC80211_RC_MINSTREL
+          scripts/config --enable CONFIG_MAC80211_RC_DEFAULT_MINSTREL
 
+          # 5. Enable Atheros Ath9k Modules
           scripts/config --enable CONFIG_WLAN_VENDOR_ATH
           scripts/config --module CONFIG_ATH_COMMON
           scripts/config --module CONFIG_ATH9K_HW
           scripts/config --module CONFIG_ATH9K_COMMON
           scripts/config --module CONFIG_ATH9K_HTC
 
-          # 4. Resolve dependencies
+          # 6. Resolve dependencies non-interactively
           make ARCH=arm64 LLVM=1 olddefconfig
 
-          # 5. Prepare build environment
+          # 7. Prepare build environment
           make ARCH=arm64 LLVM=1 modules_prepare
 
-          # 6. Build ALL enabled modules in a single pass (resolves Module.symvers)
+          # 8. Build ALL enabled modules in a single pass (generates unified Module.symvers)
           make ARCH=arm64 LLVM=1 -j$(nproc) modules
+
+      - name: Package Compiled .ko Artifacts
+        run: |
+          mkdir -p output_modules
+          find android-kernel/ -name "*.ko" -exec cp {} output_modules/ \;
+          echo "Found modules:"
+          ls -la output_modules/
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ath9k-kernel-modules
+          path: output_modules/*.ko
