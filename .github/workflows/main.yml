@@ -27,9 +27,12 @@ jobs:
           # 1. Base Android GKI Configuration
           make ARCH=arm64 LLVM=1 gki_defconfig
 
-          # 2. Disable in-kernel headers generation
+          # 2. Disable in-kernel headers & certificate extraction tool to prevent OpenSSL build failure
           scripts/config --disable CONFIG_IKHEADERS
           scripts/config --disable CONFIG_IKHEADERS_PROC
+          scripts/config --disable CONFIG_SYSTEM_TRUSTED_KEYS
+          scripts/config --disable CONFIG_SYSTEM_REVOCATION_KEYS
+          scripts/config --disable CONFIG_MODULE_SIG
 
           # 3. Enable Core Networking, Crypto, and Subsystem Flags
           scripts/config --enable CONFIG_NET
@@ -59,7 +62,7 @@ jobs:
           # 7. Prepare build environment
           make ARCH=arm64 LLVM=1 modules_prepare
 
-          # 8. Build ALL enabled modules in a single pass (generates unified Module.symvers)
+          # 8. Build ALL enabled modules in a single pass
           make ARCH=arm64 LLVM=1 -j$(nproc) modules
 
       - name: Package Compiled .ko Artifacts
