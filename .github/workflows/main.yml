@@ -27,11 +27,11 @@ jobs:
           # 1. Base Android GKI Configuration
           make ARCH=arm64 LLVM=1 gki_defconfig
 
-          # 2. Disable in-kernel headers generation to avoid archive build errors
+          # 2. Disable in-kernel headers generation
           scripts/config --disable CONFIG_IKHEADERS
           scripts/config --disable CONFIG_IKHEADERS_PROC
 
-          # 3. Enable Wireless Subsystem & Ath9k Modules
+          # 3. Enable Wireless Subsystem & MAC80211 Stack
           scripts/config --module CONFIG_NET_WIRELESS
           scripts/config --module CONFIG_CFG80211
           scripts/config --module CONFIG_MAC80211
@@ -45,8 +45,11 @@ jobs:
           # 4. Resolve defaults non-interactively
           make ARCH=arm64 LLVM=1 olddefconfig
 
-          # 5. Prepare and Compile Modules Only
+          # 5. Prepare Module Environment
           make ARCH=arm64 LLVM=1 modules_prepare
+
+          # 6. Target both the MAC80211 stack and Ath9k directories
+          make ARCH=arm64 LLVM=1 -j$(nproc) M=net/mac80211 modules
           make ARCH=arm64 LLVM=1 -j$(nproc) M=net/wireless modules
           make ARCH=arm64 LLVM=1 -j$(nproc) M=drivers/net/wireless/ath/ath9k modules
 
