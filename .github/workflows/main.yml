@@ -16,30 +16,32 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential bc libncurses5-dev libssl-dev libelf-dev bison flex
 
-      - name: Build Kernel Modules
+      - name: Download Kernel Source and Build Modules
         run: |
-          # Adjust make commands here if your repository uses specific CROSS_COMPILE or ARCH flags
-          # If your Makefile is inside a subfolder, cd there first
-          cp /tmp
-          make -j$(nproc)
+          # Fetch the kernel tree or backports
+          wget https://cdn.kernel.org/pub/linux/kernel/projects/backports/stable/v6.1/backports-6.1-1.tar.xz || true
+          if [ -f backports-6.1-1.tar.xz ]; then
+            tar -xf backports-6.1-1.tar.xz
+            cd backports-6.1-1
+            ./gentree.py --defconfig-ath9k /tmp/ath9k-out
+            cd /tmp/ath9k-out
+            make -j$(nproc)
+          fi
 
-      - name: Stage Artifacts (Fix Missing Base Modules)
+      - name: Stage Artifacts
         run: |
           mkdir -p artifact
           
-          # Copy base Atheros module (contains ath_printk, ath_hw cycle counters, etc.)
-          cp drivers/net/wireless/ath/ath.ko artifact/ 2>/dev/null || true
+          # Copy base Atheros module
+          find / -name "ath.ko" -exec cp {} artifact/ \; 2>/dev/null || true
           
-          # Copy hardware, common, and HTC modules
-          cp drivers/net/wireless/ath/ath9k/*.ko artifact/ 2>/dev/null || true
-          
-          # Copy wireless stack modules
-          cp net/mac80211/mac80211.ko artifact/ 2>/dev/null || true
-          cp net/wireless/cfg80211.ko artifact/ 2>/dev/null || true
+          # Copy ath9k hardware, common, and htc modules
+          find / -name "ath9k_hw.ko" -exec cp {} artifact/ \; 2>/dev/null || true
+          find / -name "ath9k_common.ko" -exec cp {} artifact/ \; 2>/dev/null || true
+          find / -name "ath9k_htc.ko" -exec cp {} artifact/ \; 2>/dev/null || true
+          find / -name "mac80211.ko" -exec cp {} artifact/ \; 2>/dev/null || true
 
-          # Output staged files to action log
           echo "=== Staged Artifacts ==="
-          cp drivers/net/wireless/ath/ath.ko artifact/ 2>/dev/null || true
           ls -la artifact/
 
       - name: Upload Kernel Modules Artifact
