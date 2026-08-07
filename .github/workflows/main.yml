@@ -18,7 +18,6 @@ jobs:
 
       - name: Download Kernel Source and Build Modules
         run: |
-          # Fetch the kernel tree or backports
           wget https://cdn.kernel.org/pub/linux/kernel/projects/backports/stable/v6.1/backports-6.1-1.tar.xz || true
           if [ -f backports-6.1-1.tar.xz ]; then
             tar -xf backports-6.1-1.tar.xz
@@ -32,14 +31,8 @@ jobs:
         run: |
           mkdir -p artifact
           
-          # Copy base Atheros module
-          find / -name "ath.ko" -exec cp {} artifact/ \; 2>/dev/null || true
-          
-          # Copy ath9k hardware, common, and htc modules
-          find / -name "ath9k_hw.ko" -exec cp {} artifact/ \; 2>/dev/null || true
-          find / -name "ath9k_common.ko" -exec cp {} artifact/ \; 2>/dev/null || true
-          find / -name "ath9k_htc.ko" -exec cp {} artifact/ \; 2>/dev/null || true
-          find / -name "mac80211.ko" -exec cp {} artifact/ \; 2>/dev/null || true
+          # Search current workspace AND /tmp for all compiled kernel modules
+          sudo find /tmp $GITHUB_WORKSPACE -name "*.ko" -exec cp {} artifact/ \; 2>/dev/null || true
 
           echo "=== Staged Artifacts ==="
           ls -la artifact/
@@ -49,3 +42,4 @@ jobs:
         with:
           name: ath9k-kernel-modules
           path: artifact/
+          if-no-files-found: error
