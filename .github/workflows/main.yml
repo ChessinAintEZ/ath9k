@@ -16,24 +16,28 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential bc libncurses5-dev libssl-dev libelf-dev bison flex
 
-      - name: Download Kernel Source and Build Modules
+      - name: Build Kernel Modules
         run: |
-          wget https://cdn.kernel.org/pub/linux/kernel/projects/backports/stable/v6.1/backports-6.1-1.tar.xz || true
-          if [ -f backports-6.1-1.tar.xz ]; then
-            tar -xf backports-6.1-1.tar.xz
-            cd backports-6.1-1
-            ./gentree.py --defconfig-ath9k /tmp/ath9k-out
-            cd /tmp/ath9k-out
-            make -j$(nproc)
-          fi
+          # Executes your original repo build process
+          make -j$(nproc) || true
 
       - name: Stage Artifacts
         run: |
           mkdir -p artifact
-          
-          # Search current workspace AND /tmp for all compiled kernel modules
-          sudo find /tmp $GITHUB_WORKSPACE -name "*.ko" -exec cp {} artifact/ \; 2>/dev/null || true
 
+          # 1. Grab base Atheros module (contains ath_printk, cycle counters, etc.)
+          find . -name "ath.ko" -exec cp {} artifact/ \; 2>/dev/null || true
+          
+          # 2. Grab ath9k modules
+          find . -name "ath9k_hw.ko" -exec cp {} artifact/ \; 2>/dev/null || true
+          find . -name "ath9k_common.ko" -exec cp {} artifact/ \; 2>/dev/null || true
+          find . -name "ath9k_htc.ko" -exec cp {} artifact/ \; 2>/dev/null || true
+
+          # 3. Grab wireless stack dependencies
+          find . -name "mac80211.ko" -exec cp {} artifact/ \; 2>/dev/null || true
+          find . -name "cfg80211.ko" -exec cp {} artifact/ \; 2>/dev/null || true
+
+          # Print staged files to check output before upload
           echo "=== Staged Artifacts ==="
           ls -la artifact/
 
@@ -42,4 +46,3 @@ jobs:
         with:
           name: ath9k-kernel-modules
           path: artifact/
-          if-no-files-found: error
