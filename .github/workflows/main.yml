@@ -20,7 +20,7 @@ jobs:
         run: |
           # Adjust make commands here if your repository uses specific CROSS_COMPILE or ARCH flags
           # If your Makefile is inside a subfolder, cd there first
-          cd path/to/your/module/folder
+          cp /tmp
           make -j$(nproc)
 
       - name: Stage Artifacts (Fix Missing Base Modules)
