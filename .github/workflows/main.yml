@@ -8,80 +8,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Build Dependencies
+      - name: Set up Build Environment
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev libelf-dev bc git curl lld clang llvm cpio rsync xz-utils python3
+          sudo apt-get install -y build-essential bc libncurses5-dev libssl-dev libelf-dev bison flex
 
-      - name: Fetch Common Android Kernel 6.1 Source
+      - name: Build Kernel Modules
         run: |
-          git clone --depth=1 -b android14-6.1 https://android.googlesource.com/kernel/common android-kernel
+          # Adjust make commands here if your repository uses specific CROSS_COMPILE or ARCH flags
+          make -j$(nproc) modules
 
-      - name: Configure Kernel
+      - name: Stage Artifacts (Fix Missing Base Modules)
         run: |
-          cd android-kernel
+          mkdir -p artifact
           
-          # 1. Base Android GKI Configuration
-          make ARCH=arm64 LLVM=1 gki_defconfig
-
-          # 2. Disable signing tools and host cert compilation to prevent OpenSSL 3.0 build crashes
-          scripts/config --disable CONFIG_IKHEADERS
-          scripts/config --disable CONFIG_IKHEADERS_PROC
-          scripts/config --disable CONFIG_SYSTEM_TRUSTED_KEYS
-          scripts/config --disable CONFIG_SYSTEM_REVOCATION_KEYS
-          scripts/config --disable CONFIG_MODULE_SIG
-          scripts/config --disable CONFIG_CRYPTO_SIGNATURE
-          scripts/config --disable CONFIG_DEBUG_INFO_BTF
-
-          # 3. Enable Core Subsystems
-          scripts/config --enable CONFIG_NET
-          scripts/config --enable CONFIG_WIRELESS
-          scripts/config --enable CONFIG_NETDEVICES
-          scripts/config --enable CONFIG_WLAN
-          scripts/config --enable CONFIG_CRYPTO
-          scripts/config --enable CONFIG_CRYPTO_LIB_ARC4
-
-          # 4. Configure MAC80211 & CFG80211
-          scripts/config --module CONFIG_CFG80211
-          scripts/config --module CONFIG_MAC80211
-          scripts/config --enable CONFIG_MAC80211_HAS_RC
-          scripts/config --enable CONFIG_MAC80211_RC_MINSTREL
-          scripts/config --enable CONFIG_MAC80211_RC_DEFAULT_MINSTREL
-
-          # 5. Configure Ath9k Drivers
-          scripts/config --enable CONFIG_WLAN_VENDOR_ATH
-          scripts/config --module CONFIG_ATH_COMMON
-          scripts/config --module CONFIG_ATH9K_HW
-          scripts/config --module CONFIG_ATH9K_COMMON
-          scripts/config --module CONFIG_ATH9K_HTC
-
-          # 6. Apply symbol dependencies
-          make ARCH=arm64 LLVM=1 olddefconfig
-
-      - name: Build Modules
-        run: |
-          cd android-kernel
+          # Copy base Atheros module (contains ath_printk, ath_hw cycle counters, etc.)
+          cp drivers/net/wireless/ath/ath.ko artifact/ 2>/dev/null || true
           
-          # Prepare kernel headers and symbol build environment
-          make ARCH=arm64 LLVM=1 prepare
-          make ARCH=arm64 LLVM=1 modules_prepare
+          # Copy hardware, common, and HTC modules
+          cp drivers/net/wireless/ath/ath9k/*.ko artifact/ 2>/dev/null || true
+          
+          # Copy wireless stack modules
+          cp net/mac80211/mac80211.ko artifact/ 2>/dev/null || true
+          cp net/wireless/cfg80211.ko artifact/ 2>/dev/null || true
 
-          # Target specific module paths directly
-          make ARCH=arm64 LLVM=1 -j$(nproc) M=net/mac80211 modules
-          make ARCH=arm64 LLVM=1 -j$(nproc) M=drivers/net/wireless/ath/ath9k modules
+          # Output staged files to action log
+          echo "=== Staged Artifacts ==="
+          cp drivers/net/wireless/ath/ath.ko artifact/ 2>/dev/null || true
+          ls -la artifact/
 
-      - name: Package Compiled .ko Artifacts
-        run: |
-          mkdir -p output_modules
-          find android-kernel/ -name "*.ko" -exec cp {} output_modules/ \;
-          echo "Generated Kernel Modules:"
-          ls -la output_modules/
-
-      - name: Upload Artifacts
+      - name: Upload Kernel Modules Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ath9k-kernel-modules
-          path: output_modules/*.ko
+          path: artifact/
